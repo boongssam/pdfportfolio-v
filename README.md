@@ -7,20 +7,12 @@ PDF는 웹앱이 Supabase 비공개 Storage에 직접 업로드하므로 사용�
 ## 1. Supabase 준비
 
 1. Supabase 프로젝트를 생성합니다.
-2. SQL Editor에서 `supabase/migrations/202610140001_initial.sql` 전체를 한 번 실행합니다.
-3. Authentication → Providers에서 Email 제공자가 활성화되어 있는지 확인하고, Authentication 설정에서 새 사용자 가입을 비활성화합니다. 계정은 관리자가 생성합니다.
-4. Authentication → Users → Add user에서 교사 이메일과 비밀번호로 사용자를 생성하고 이메일 확인 상태를 확인합니다.
-5. 아래 SQL의 이메일을 생성한 교사 이메일로 바꾸어 실행합니다. 등록되지 않은 계정은 로그인 세션이 생겨도 데이터·Storage·AI API를 사용할 수 없습니다.
+2. Authentication → Providers에서 Email 제공자가 활성화되어 있는지 확인합니다. Authentication 설정의 **Allow new users to sign up**을 끄고, 익명 로그인도 꺼 둡니다. 이 설정이 켜지면 새로 가입한 계정도 앱에 접근할 수 있습니다.
+3. SQL Editor에서 `supabase/migrations/202610140002_auth_users_only.sql` 전체를 실행합니다. 기존 초기 SQL을 전부 실행했거나 일부만 실행한 프로젝트에서도 적용할 수 있습니다.
+4. Authentication → Users → Add user에서 교사 이메일과 비밀번호로 사용자를 생성하고 이메일 확인 상태를 확인합니다. 앱에서 별도로 허용 목록을 등록할 필요는 없습니다.
+5. 프로젝트 Connect/API 설정에서 URL과 publishable key를 복사합니다.
 
-```sql
-insert into public.allowed_teachers (email) values ('teacher@example.com');
--- 접근 해제
--- delete from public.allowed_teachers where email = 'teacher@example.com';
-```
-
-6. 프로젝트 Connect/API 설정에서 URL과 publishable key를 복사합니다.
-
-앱에는 회원가입 기능이 없습니다. 기존 Google 계정만 있는 사용자는 이메일·비밀번호 로그인을 위해 관리자에게 비밀번호 설정을 요청해야 합니다.
+앱에는 회원가입 기능이 없습니다. 기존 Google 계정만 있는 사용자는 이메일·비밀번호 로그인을 위해 관리자에게 비밀번호 설정을 요청해야 합니다. 기존 `allowed_teachers` 테이블과 `is_allowed_teacher()` 함수는 더 이상 사용하지 않으므로 남아 있어도 됩니다.
 
 참고: [이메일·비밀번호 로그인](https://supabase.com/docs/guides/auth/passwords), [사용자 관리](https://supabase.com/docs/guides/auth/users), [Storage 권한](https://supabase.com/docs/guides/storage/security/access-control).
 
@@ -66,7 +58,9 @@ PDF 최대 15MB, Node API의 maxDuration은 300초입니다. Vercel 프로젝트
 - 평가 항목·결과는 JSONB, 기존 화면과 호환되는 시간 값은 밀리초로 저장됩니다.
 - 원본 PDF는 비공개 임시 보관이고, OCR 텍스트·평가 결과는 DB에 저장됩니다.
 - Gemini에 PDF와 학생 정보가 전달됩니다. 실제 운영 전에 학교의 데이터 처리 기준을 확인하세요.
-- allowed_teachers에서 제거하면 API·DB 접근이 즉시 제한됩니다. 계정 자체의 로그인 차단이나 삭제는 Supabase Authentication → Users에서 별도로 관리합니다.
+- Authentication → Users에 있는 이메일 계정만 앱에 로그인할 수 있습니다. 새 사용자 가입이 꺼져 있어야 관리자만 접근 계정을 추가할 수 있습니다.
+- DB와 Storage의 RLS는 로그인한 사용자의 ID로 데이터와 PDF 경로를 분리하고, 비공개 함수로 Auth 계정의 존재 여부와 익명 여부를 확인합니다. `private` 스키마는 Data API의 Exposed schemas에 추가하지 마세요.
+- 계정 접근을 중지하려면 Supabase Authentication → Users에서 해당 계정을 삭제합니다. 삭제가 완료되면 RLS가 기존 JWT의 데이터·Storage 요청도 거부합니다. 단순 로그인 차단은 기존 JWT를 즉시 무효화하지 않습니다.
 
 ## 검증
 
@@ -77,5 +71,5 @@ npm.cmd run build
 ```
 
 실서비스에서는 두 교사 계정으로 서로의 DB 행 및 PDF 경로에 대한 조회·수정·삭제가 거부되는지 확인하세요.
-로그아웃 상태 및 허용되지 않은 계정의 `/api/ocr`, `/api/grade` 호출도 거부되어야 합니다.
-15MB PDF 업로드, OCR 오류 시 삭제, 교사 허용 해제, Cron 실행 결과를 확인하세요.
+로그아웃 상태와 익명 계정의 `/api/ocr`, `/api/grade` 호출도 거부되어야 합니다.
+15MB PDF 업로드, OCR 오류 시 삭제, 계정 차단, Cron 실행 결과를 확인하세요.

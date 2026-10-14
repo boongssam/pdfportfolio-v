@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "./supabase";
+import { isPermanentUser } from "./auth-identity";
 
 export class AuthError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -11,8 +12,7 @@ export async function verifyRequest(req: Request) {
   const client = createSupabaseClient(token);
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) throw new AuthError("다시 로그인해 주세요.", 401);
-  const { data: allowed, error: accessError } = await client.rpc("is_allowed_teacher");
-  if (accessError || !allowed) throw new AuthError("등록된 교사 계정만 사용할 수 있습니다.", 403);
+  if (!isPermanentUser(data.user)) throw new AuthError("이메일 계정으로 로그인해 주세요.", 403);
   return { user: data.user, client };
 }
 

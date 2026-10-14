@@ -2,6 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState, type FormEvent } from "react";
+import { isPermanentUser } from "@/lib/auth-identity";
 import { signInWithEmailPassword } from "@/lib/password-login";
 import { supabase } from "@/lib/supabase";
 
@@ -25,39 +26,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let revision = 0;
     const client = supabase();
 
-    async function refresh(nextUser: User | null) {
-      const current = ++revision;
-      try {
-        const { data: allowed, error: accessError } = nextUser
-          ? await client.rpc("is_allowed_teacher")
-          : { data: false, error: null };
-        if (!active || current !== revision) return;
-        setUser(allowed && !accessError ? nextUser : null);
-        setError(
-          accessError ? "계정 권한을 확인하지 못했습니다. 다시 시도해 주세요."
-            : nextUser && !allowed ? "등록된 교사 계정만 사용할 수 있습니다. 관리자에게 계정 등록을 요청해 주세요."
-              : "",
-        );
-      } catch {
-        if (active && current === revision) {
-          setUser(null);
-          setError("로그인 정보를 확인하지 못했습니다.");
-        }
-      } finally {
-        if (active && current === revision) setLoading(false);
-      }
+    function refresh(nextUser: User | null) {
+      ++revision;
+      if (!active) return;
+      const allowed = isPermanentUser(nextUser);
+      setUser(allowed ? nextUser : null);
+      setError(nextUser && !allowed ? "이메일 계정으로 로그인해 주세요." : "");
+      setLoading(false);
     }
 
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       // 인증 콜백 안에서는 다른 인증 요청을 기다리지 않습니다.
-      setTimeout(() => { if (active) void refresh(session?.user ?? null); }, 0);
+      setTimeout(() => { if (active) refresh(session?.user ?? null); }, 0);
     });
     client.auth.getSession().then(({ data, error: sessionError }) => {
       if (sessionError && active) {
         setError(sessionError.message);
         setLoading(false);
       } else if (active && revision === 0) {
-        void refresh(data.session?.user ?? null);
+        refresh(data.session?.user ?? null);
       }
     }).catch(() => {
       if (active) {
