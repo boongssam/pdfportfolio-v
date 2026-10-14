@@ -12,14 +12,12 @@ const NAV = [
 
 export function Header() {
   const pathname = usePathname();
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/" className="text-lg font-bold text-indigo-700">
-          활동지 AI 평가
-        </Link>
+        <Link href="/" className="text-lg font-bold text-indigo-700">활동지 AI 평가</Link>
         <nav className="flex gap-1">
           {NAV.map((n) => {
             const active = pathname.startsWith(n.href);
@@ -39,16 +37,12 @@ export function Header() {
         {user ? (
           <div className="ml-auto flex items-center gap-3 text-sm">
             <span className="hidden text-slate-500 sm:inline">{user.email}</span>
-            <button className="text-slate-600 underline-offset-2 hover:underline" onClick={logout}>
+            <button className="text-slate-600 underline-offset-2 hover:underline" onClick={() => logout().catch((error: Error) => alert(error.message))}>
               로그아웃
             </button>
           </div>
         ) : (
-          !loading && (
-            <button className="btn-primary ml-auto" onClick={() => login().catch((e: Error) => alert(e.message))}>
-              Google 로그인
-            </button>
-          )
+          !loading && <Link className="btn-primary ml-auto" href="/login">이메일 로그인</Link>
         )}
       </div>
     </header>
